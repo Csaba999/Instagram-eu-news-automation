@@ -228,7 +228,12 @@ def ig_call(method: str, path: str, **params) -> dict:
 
 
 def post_to_instagram(image_url: str, caption: str) -> str:
-    container_id = ig_call("POST", f"{IG_USER_ID}/media", image_url=image_url, caption=caption)["id"]
+    # a tokenhez tartozó fiókot a /me adja meg; ha az IG_USER_ID nem egyezik vele, azt jelezzük
+    me = ig_call("GET", "me", fields="user_id,username,account_type")
+    print(f"Instagram-fiók: @{me.get('username')} ({me.get('account_type')})")
+    if IG_USER_ID and IG_USER_ID not in (me.get("user_id"), me.get("id")):
+        print("Figyelem: az IG_USER_ID secret nem ennek a fióknak az azonosítója; a /me fiókot használom.")
+    container_id = ig_call("POST", "me/media", image_url=image_url, caption=caption)["id"]
     for _ in range(30):  # megvárjuk, míg az Instagram feldolgozza a képet
         status = ig_call("GET", container_id, fields="status_code,status").get("status_code")
         if status == "FINISHED":
@@ -236,7 +241,7 @@ def post_to_instagram(image_url: str, caption: str) -> str:
         if status in ("ERROR", "EXPIRED"):
             raise RuntimeError(f"Konténer feldolgozási hiba: {status}")
         time.sleep(5)
-    return ig_call("POST", f"{IG_USER_ID}/media_publish", creation_id=container_id)["id"]
+    return ig_call("POST", "me/media_publish", creation_id=container_id)["id"]
 
 
 def build_caption(meta: dict) -> str:
@@ -249,7 +254,7 @@ def build_caption(meta: dict) -> str:
 
 def main() -> None:
     if not DRY_RUN:
-        missing = [k for k in ("IG_USER_ID", "IG_TOKEN", "RAW_BASE") if not os.environ.get(k)]
+        missing = [k for k in ("IG_TOKEN", "RAW_BASE") if not os.environ.get(k)]
         if missing:
             sys.exit("Hiányzó környezeti változó(k): " + ", ".join(missing))
 
