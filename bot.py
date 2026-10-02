@@ -204,9 +204,11 @@ def make_card(meta: dict, path: pathlib.Path) -> None:
 def push_image(path: pathlib.Path) -> str:
     """Az Instagramnak publikus URL kell: a képet feltoljuk a (publikus) repóba."""
     subprocess.run(["git", "add", str(path)], check=True)
-    subprocess.run(["git", "commit", "-m", f"card {path.name}"], check=True)
-    subprocess.run(["git", "pull", "--rebase", "--quiet"], check=True)
-    subprocess.run(["git", "push"], check=True)
+    # ha ugyanez a kép már fent van (pl. egy korábbi, elakadt futásból), nincs mit commitolni
+    if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode != 0:
+        subprocess.run(["git", "commit", "-m", f"card {path.name}"], check=True)
+        subprocess.run(["git", "pull", "--rebase", "--quiet"], check=True)
+        subprocess.run(["git", "push"], check=True)
     url = f"{RAW_BASE}/{path.as_posix()}"
     for _ in range(20):  # várjuk meg, míg elérhető lesz
         if requests.head(url, timeout=15).status_code == 200:
