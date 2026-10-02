@@ -19,7 +19,10 @@ concurrency:
 
 jobs:
   post:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted   # a saját gépen futó GitHub runner (a Telex tiltja a GitHub szervereit)
+    defaults:
+      run:
+        shell: bash          # Windows-on a Git for Windows bash-át használja
     steps:
       - uses: actions/checkout@v4
 
