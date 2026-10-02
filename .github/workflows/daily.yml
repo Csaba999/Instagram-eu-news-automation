@@ -9,6 +9,9 @@ on:
         description: "DRY_RUN (nem pushol képet, nem posztol)"
         type: boolean
         default: true
+      max_per_run:
+        description: "Max. ennyi cikket posztol (az ütemezett futás 3-at)"
+        default: "1"
 
 permissions:
   contents: write
@@ -45,7 +48,7 @@ jobs:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           RAW_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
-          MAX_PER_RUN: "1"
+          MAX_PER_RUN: ${{ inputs.max_per_run || '3' }}
         run: .venv/bin/python bot.py
 
       - name: Upload cards (DRY_RUN)

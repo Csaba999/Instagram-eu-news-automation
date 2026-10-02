@@ -38,6 +38,7 @@ STATE_FILE = pathlib.Path("posted.json")
 IMG_DIR = pathlib.Path("images")
 MAX_PER_RUN = int(os.environ.get("MAX_PER_RUN", "1"))  # ennyi új cikket posztol egy futásnál
 
+START_DATE = os.environ.get("START_DATE", "2026-10-02")  # ennél régebbi cikket nem posztol
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
 IG_USER_ID = os.environ.get("IG_USER_ID", "")
 IG_TOKEN = os.environ.get("IG_TOKEN", "")
@@ -137,6 +138,20 @@ def get_article_urls_gnews() -> list[str]:
             out.append(url)
     print(f"Google News: {len(items)} találat, {len(out)} Telex-cikk feloldva", file=sys.stderr)
     return out
+
+
+def article_date(url: str) -> str:
+    y, m, d = re.search(r"/(\d{4})/(\d{2})/(\d{2})/", url).groups()
+    return f"{y}-{m}-{d}"
+
+
+def oldest_first(urls: list[str]) -> list[str]:
+    """A lista legfrissebb elöl jön: dátum szerint növekvő, egy napon belül fordított listasorrend."""
+    order = {u: i for i, u in enumerate(urls)}
+    return sorted(
+        (u for u in urls if article_date(u) >= START_DATE),
+        key=lambda u: (article_date(u), -order[u]),
+    )
 
 
 def get_meta(url: str) -> dict:
@@ -239,11 +254,11 @@ def main() -> None:
 
     IMG_DIR.mkdir(exist_ok=True)
     posted = load_state()
-    candidates = [u for u in get_article_urls() if u not in posted]
+    candidates = oldest_first([u for u in get_article_urls() if u not in posted])
     print(f"{len(candidates)} új cikk a listában, max. {MAX_PER_RUN} posztolva", "(DRY_RUN)" if DRY_RUN else "")
 
     done = 0
-    for url in candidates:  # legfrissebb elöl
+    for url in candidates:  # legrégebbi elöl
         if done >= MAX_PER_RUN:
             break
         meta = get_meta(url)
