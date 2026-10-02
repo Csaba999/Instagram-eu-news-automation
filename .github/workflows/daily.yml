@@ -74,6 +74,6 @@ jobs:
           git add posted.json || true
           if ! git diff --cached --quiet; then
             git commit -m "update posted.json"
-            git pull --rebase --quiet
+            git pull --rebase --autostash --quiet
             git push
           fi

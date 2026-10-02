@@ -220,7 +220,7 @@ def push_images(*paths: pathlib.Path) -> list[str]:
     # ha ugyanez a kép már fent van (pl. egy korábbi, elakadt futásból), nincs mit commitolni
     if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode != 0:
         subprocess.run(["git", "commit", "-m", f"card {paths[0].name}"], check=True)
-        subprocess.run(["git", "pull", "--rebase", "--quiet"], check=True)
+        subprocess.run(["git", "pull", "--rebase", "--autostash", "--quiet"], check=True)
         subprocess.run(["git", "push"], check=True)
     urls = []
     for path in paths:
