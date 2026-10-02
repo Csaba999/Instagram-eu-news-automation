@@ -21,7 +21,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -263,25 +263,34 @@ def build_caption(meta: dict) -> str:
     return caption[:2200]  # Instagram caption-limit
 
 
-# helyi (Europe/Budapest) idő szerinti futási időpontok; a cron mindkét (nyári/téli) UTC-eltolással
-# elindítja a workflow-t, és itt csak az a futás dolgozik, amelyik a helyi időpontra esik
+# helyi (Europe/Budapest) idő szerinti futási időpontok. A cron mindkét (nyári/téli) UTC-eltolással
+# elindítja a workflow-t; ha a Mac épp aludt, a GitHub sorban tartja a futást, és ébredéskor lefut.
+# A bot a legutóbb esedékes időpontot a last_slot.txt-ben jegyzi meg, így minden időpont egyszer
+# dolgozik: a kimaradtat ébredéskor pótolja, a dupla (másik eltolású) indítás pedig azonnal kilép.
 SLOTS = ["06:00", "11:00", "13:45", "15:35", "18:00", "20:00", "22:00"]
-SLOT_WINDOW_MIN = 50  # a GitHub ütemezője késhet; ennyi percen belül még az adott időpontnak számít
+LAST_SLOT_FILE = pathlib.Path("last_slot.txt")
 
 
-def in_schedule_slot() -> bool:
-    now = datetime.now(ZoneInfo("Europe/Budapest"))
-    minutes = now.hour * 60 + now.minute
-    for slot in SLOTS:
-        h, m = map(int, slot.split(":"))
-        if 0 <= minutes - (h * 60 + m) < SLOT_WINDOW_MIN:
-            return True
-    print(f"Most {now:%H:%M} van (Budapest), ez nem futási időpont, kilépek.")
-    return False
+def due_slot() -> str | None:
+    tz = ZoneInfo("Europe/Budapest")
+    now = datetime.now(tz)
+    slots = [
+        datetime.combine(day, datetime.strptime(t, "%H:%M").time(), tz)
+        for day in (now.date() - timedelta(days=1), now.date())
+        for t in SLOTS
+    ]
+    latest = max(s for s in slots if s <= now).strftime("%Y-%m-%d %H:%M")
+    last = LAST_SLOT_FILE.read_text().strip() if LAST_SLOT_FILE.exists() else ""
+    if last >= latest:
+        print(f"Most {now:%H:%M} van (Budapest); a {latest} időpont már lefutott, kilépek.")
+        return None
+    print(f"Esedékes időpont: {latest} (most {now:%H:%M}, Budapest)")
+    return latest
 
 
 def main() -> None:
-    if os.environ.get("SCHEDULED") and not in_schedule_slot():
+    slot = due_slot() if os.environ.get("SCHEDULED") else None
+    if os.environ.get("SCHEDULED") and not slot:
         return
     if not DRY_RUN:
         missing = [k for k in ("IG_TOKEN", "RAW_BASE") if not os.environ.get(k)]
@@ -320,6 +329,9 @@ def main() -> None:
             save_state(posted)
             print("Posztolva:", url, "media id:", media_id)
         done += 1
+
+    if slot and not DRY_RUN:
+        LAST_SLOT_FILE.write_text(slot + "\n")  # csak sikeres futás után: hiba esetén a következő indítás újrapróbálja
 
 
 if __name__ == "__main__":

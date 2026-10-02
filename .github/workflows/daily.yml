@@ -3,8 +3,9 @@ name: Daily EU news post
 on:
   schedule:
     # Futási időpontok magyar idő szerint: 06:00, 11:00, 13:45, 15:35, 18:00, 20:00, 22:00.
-    # A cron UTC-ben megy, ezért a nyári (UTC+2) és a téli (UTC+1) eltolás is szerepel;
-    # a bot.py a budapesti óra alapján csak a valódi időpontban dolgozik (a többi futás azonnal kilép).
+    # A cron UTC-ben megy, ezért a nyári (UTC+2) és a téli (UTC+1) eltolás is szerepel.
+    # Ha a Mac alszik, a GitHub (max. 24 óráig) sorban tartja a futást, és ébredéskor lefut;
+    # a bot.py a last_slot.txt alapján minden időpontot egyszer dolgoz fel.
     - cron: "0 4,5 * * *"      # 06:00
     - cron: "0 9,10 * * *"     # 11:00
     - cron: "45 11,12 * * *"   # 13:45
@@ -71,9 +72,9 @@ jobs:
       - name: Commit state
         if: always() && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         run: |
-          git add posted.json || true
+          for f in posted.json last_slot.txt; do if [ -f "$f" ]; then git add "$f"; fi; done
           if ! git diff --cached --quiet; then
-            git commit -m "update posted.json"
+            git commit -m "update state"
             git pull --rebase --autostash --quiet
             git push
           fi
