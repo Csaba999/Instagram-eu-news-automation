@@ -21,7 +21,8 @@ import re
 import subprocess
 import sys
 import time
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import requests
 from bs4 import BeautifulSoup
@@ -201,20 +202,37 @@ def make_card(meta: dict, path: pathlib.Path) -> None:
     card.save(path, "JPEG", quality=92)
 
 
-def push_image(path: pathlib.Path) -> str:
-    """Az Instagramnak publikus URL kell: a képet feltoljuk a (publikus) repóba."""
-    subprocess.run(["git", "add", str(path)], check=True)
+STORY_SIZE = (1080, 1920)  # Instagram sztori: 9:16
+
+
+def make_story(card_path: pathlib.Path, path: pathlib.Path) -> None:
+    """A keretes posztkép a 9:16-os sztori közepére, zöld háttérre (a kép itt sincs levágva)."""
+    card = Image.open(card_path)
+    card = ImageOps.contain(card, (STORY_SIZE[0], STORY_SIZE[1]), method=Image.LANCZOS)
+    story = Image.new("RGB", STORY_SIZE, GREEN)
+    story.paste(card, ((STORY_SIZE[0] - card.width) // 2, (STORY_SIZE[1] - card.height) // 2))
+    story.save(path, "JPEG", quality=92)
+
+
+def push_images(*paths: pathlib.Path) -> list[str]:
+    """Az Instagramnak publikus URL kell: a képeket feltoljuk a (publikus) repóba."""
+    subprocess.run(["git", "add", *map(str, paths)], check=True)
     # ha ugyanez a kép már fent van (pl. egy korábbi, elakadt futásból), nincs mit commitolni
     if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode != 0:
-        subprocess.run(["git", "commit", "-m", f"card {path.name}"], check=True)
+        subprocess.run(["git", "commit", "-m", f"card {paths[0].name}"], check=True)
         subprocess.run(["git", "pull", "--rebase", "--quiet"], check=True)
         subprocess.run(["git", "push"], check=True)
-    url = f"{RAW_BASE}/{path.as_posix()}"
-    for _ in range(20):  # várjuk meg, míg elérhető lesz
-        if requests.head(url, timeout=15).status_code == 200:
-            return url
-        time.sleep(3)
-    raise RuntimeError("A kép nem érhető el publikusan: " + url)
+    urls = []
+    for path in paths:
+        url = f"{RAW_BASE}/{path.as_posix()}"
+        for _ in range(20):  # várjuk meg, míg elérhető lesz
+            if requests.head(url, timeout=15).status_code == 200:
+                break
+            time.sleep(3)
+        else:
+            raise RuntimeError("A kép nem érhető el publikusan: " + url)
+        urls.append(url)
+    return urls
 
 
 def ig_call(method: str, path: str, **params) -> dict:
@@ -229,13 +247,16 @@ def ig_call(method: str, path: str, **params) -> dict:
     return r.json()
 
 
-def post_to_instagram(image_url: str, caption: str) -> str:
+def check_account() -> None:
     # a tokenhez tartozó fiókot a /me adja meg; ha az IG_USER_ID nem egyezik vele, azt jelezzük
     me = ig_call("GET", "me", fields="user_id,username,account_type")
     print(f"Instagram-fiók: @{me.get('username')} ({me.get('account_type')})")
     if IG_USER_ID and IG_USER_ID not in (me.get("user_id"), me.get("id")):
         print("Figyelem: az IG_USER_ID secret nem ennek a fióknak az azonosítója; a /me fiókot használom.")
-    container_id = ig_call("POST", "me/media", image_url=image_url, caption=caption)["id"]
+
+
+def publish(**params) -> str:
+    container_id = ig_call("POST", "me/media", **params)["id"]
     for _ in range(30):  # megvárjuk, míg az Instagram feldolgozza a képet
         status = ig_call("GET", container_id, fields="status_code,status").get("status_code")
         if status == "FINISHED":
@@ -254,7 +275,26 @@ def build_caption(meta: dict) -> str:
     return caption[:2200]  # Instagram caption-limit
 
 
+# helyi (Europe/Budapest) idő szerinti futási időpontok; a cron mindkét (nyári/téli) UTC-eltolással
+# elindítja a workflow-t, és itt csak az a futás dolgozik, amelyik a helyi időpontra esik
+SLOTS = ["06:00", "11:00", "13:45", "15:35", "18:00", "20:00", "22:00"]
+SLOT_WINDOW_MIN = 50  # a GitHub ütemezője késhet; ennyi percen belül még az adott időpontnak számít
+
+
+def in_schedule_slot() -> bool:
+    now = datetime.now(ZoneInfo("Europe/Budapest"))
+    minutes = now.hour * 60 + now.minute
+    for slot in SLOTS:
+        h, m = map(int, slot.split(":"))
+        if 0 <= minutes - (h * 60 + m) < SLOT_WINDOW_MIN:
+            return True
+    print(f"Most {now:%H:%M} van (Budapest), ez nem futási időpont, kilépek.")
+    return False
+
+
 def main() -> None:
+    if os.environ.get("SCHEDULED") and not in_schedule_slot():
+        return
     if not DRY_RUN:
         missing = [k for k in ("IG_TOKEN", "RAW_BASE") if not os.environ.get(k)]
         if missing:
@@ -265,7 +305,10 @@ def main() -> None:
     candidates = oldest_first([u for u in get_article_urls() if u not in posted])
     print(f"{len(candidates)} új cikk a listában, max. {MAX_PER_RUN} posztolva", "(DRY_RUN)" if DRY_RUN else "")
 
-    done = 0
+    if not DRY_RUN and candidates:
+        check_account()
+
+    done, story_errors = 0, []
     for url in candidates:  # legrégebbi elöl
         if done >= MAX_PER_RUN:
             break
@@ -278,17 +321,27 @@ def main() -> None:
             continue
         slug = hashlib.sha1(url.encode()).hexdigest()[:8]
         card = IMG_DIR / f"{date.today().isoformat()}-{slug}.jpg"
+        story = card.with_name(card.stem + "-story.jpg")
         make_card(meta, card)
+        make_story(card, story)
         caption = build_caption(meta)
         if DRY_RUN:
-            print(f"--- [DRY_RUN] kép: {card}\n{caption}\n---")
+            print(f"--- [DRY_RUN] kép: {card}, sztori: {story}\n{caption}\n---")
         else:
-            image_url = push_image(card)
-            media_id = post_to_instagram(image_url, caption)
+            card_url, story_url = push_images(card, story)
+            media_id = publish(image_url=card_url, caption=caption)
             posted.append(url)
-            save_state(posted)
+            save_state(posted)  # a poszt kint van: a sztori hibája se okozzon dupla posztot
             print("Posztolva:", url, "media id:", media_id)
+            try:
+                print("Sztori kint, media id:", publish(image_url=story_url, media_type="STORIES"))
+            except Exception as e:  # noqa: BLE001
+                print("Sztori hiba:", e, file=sys.stderr)
+                story_errors.append(url)
         done += 1
+
+    if story_errors:
+        sys.exit(f"{len(story_errors)} sztori nem került ki (a posztok igen), lásd fent.")
 
 
 if __name__ == "__main__":

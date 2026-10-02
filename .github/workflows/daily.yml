@@ -2,7 +2,16 @@ name: Daily EU news post
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # minden nap 06:00 UTC (08:00 magyar nyári idő szerint)
+    # Futási időpontok magyar idő szerint: 06:00, 11:00, 13:45, 15:35, 18:00, 20:00, 22:00.
+    # A cron UTC-ben megy, ezért a nyári (UTC+2) és a téli (UTC+1) eltolás is szerepel;
+    # a bot.py a budapesti óra alapján csak a valódi időpontban dolgozik (a többi futás azonnal kilép).
+    - cron: "0 4,5 * * *"      # 06:00
+    - cron: "0 9,10 * * *"     # 11:00
+    - cron: "45 11,12 * * *"   # 13:45
+    - cron: "35 13,14 * * *"   # 15:35
+    - cron: "0 16,17 * * *"    # 18:00
+    - cron: "0 18,19 * * *"    # 20:00
+    - cron: "0 20,21 * * *"    # 22:00
   workflow_dispatch:       # kézi indítás is lehetséges
     inputs:
       dry_run:
@@ -10,7 +19,7 @@ on:
         type: boolean
         default: true
       max_per_run:
-        description: "Max. ennyi cikket posztol (az ütemezett futás 3-at)"
+        description: "Max. ennyi cikket posztol (az ütemezett futás mindent, max. 20-at)"
         default: "1"
 
 permissions:
@@ -48,7 +57,8 @@ jobs:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           RAW_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
-          MAX_PER_RUN: ${{ inputs.max_per_run || '3' }}
+          MAX_PER_RUN: ${{ inputs.max_per_run || '20' }}
+          SCHEDULED: ${{ github.event_name == 'schedule' && '1' || '' }}
         run: .venv/bin/python bot.py
 
       - name: Upload cards (DRY_RUN)
