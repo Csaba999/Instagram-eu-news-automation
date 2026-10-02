@@ -40,8 +40,8 @@ MAX_PER_RUN = int(os.environ.get("MAX_PER_RUN", "1"))  # ennyi új cikket poszto
 
 START_DATE = os.environ.get("START_DATE", "2026-10-02")  # ennél régebbi cikket nem posztol
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
-IG_USER_ID = os.environ.get("IG_USER_ID", "")
-IG_TOKEN = os.environ.get("IG_TOKEN", "")
+IG_USER_ID = os.environ.get("IG_USER_ID", "").strip()  # a secretbe véletlenül bekerült szóköz/újsor ne zavarjon
+IG_TOKEN = os.environ.get("IG_TOKEN", "").strip()
 RAW_BASE = os.environ.get("RAW_BASE", "")  # pl. https://raw.githubusercontent.com/USER/REPO/main
 GRAPH = "https://graph.instagram.com/v21.0"  # Instagram Login API (nem kell Facebook-oldal)
 
