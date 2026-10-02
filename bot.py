@@ -328,6 +328,11 @@ def main() -> None:
             posted.append(url)
             save_state(posted)
             print("Posztolva:", url, "media id:", media_id)
+            try:  # a cikk linkje kommentként is a poszt alá kerül; hibája nem állítja meg a futást
+                ig_call("POST", f"{media_id}/comments", message=url)
+                print("Link kommentelve.")
+            except Exception as e:  # noqa: BLE001
+                print("Komment hiba:", e, file=sys.stderr)
         done += 1
 
     if slot and not DRY_RUN:
