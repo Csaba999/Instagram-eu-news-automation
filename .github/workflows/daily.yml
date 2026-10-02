@@ -1,0 +1,61 @@
+name: Daily EU news post
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # minden nap 06:00 UTC (08:00 magyar nyári idő szerint)
+  workflow_dispatch:       # kézi indítás is lehetséges
+    inputs:
+      dry_run:
+        description: "DRY_RUN (nem pushol képet, nem posztol)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests beautifulsoup4 lxml pillow
+
+      - name: Git identity
+        run: |
+          git config user.name "eu-bot"
+          git config user.email "eu-bot@users.noreply.github.com"
+
+      - name: Run bot
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          RAW_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
+          MAX_PER_RUN: "1"
+        run: python bot.py
+
+      - name: Upload cards (DRY_RUN)
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: cards
+          path: images/
+
+      - name: Commit state
+        if: always() && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        run: |
+          git add posted.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "update posted.json"
+            git pull --rebase --quiet
+            git push
+          fi
