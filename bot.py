@@ -11,6 +11,7 @@ Lépések:
 
 DRY_RUN=1: lekér, képet generál, kiírja a captiont, de nem pushol és nem posztol.
 """
+import email.utils
 import hashlib
 import io
 import json
@@ -80,13 +81,61 @@ def get_article_urls() -> list[str]:
 
 def get_article_urls_rss() -> list[str]:
     r = requests.get(RSS_URL, headers=HEADERS, timeout=30)
-    r.raise_for_status()
+    if r.status_code != 200:
+        print(f"Telex RSS: HTTP {r.status_code}, Google News RSS-re váltok", file=sys.stderr)
+        return get_article_urls_gnews()
     soup = BeautifulSoup(r.content, "xml")
     out = []
     for item in soup.find_all("item"):
         text = " ".join(t.get_text(" ") for t in item.find_all(["title", "description", "category"]))
         if re.search(r"\bEU\b|Európai Unió|Európai Bizottság|Európai Parlament|uniós", text):
             out.append(normalize(item.link.get_text(strip=True)))
+    return out
+
+
+GNEWS_RSS = (
+    "https://news.google.com/rss/search?q=site:telex.hu+%22Eur%C3%B3pai+Uni%C3%B3%22+when:7d"
+    "&hl=hu&gl=HU&ceid=HU:hu"
+)
+
+
+def decode_gnews_url(gn_url: str) -> str:
+    """A Google News átirányító linkjéből kinyeri az eredeti cikk-URL-t."""
+    article_id = gn_url.split("/articles/")[1].split("?")[0]
+    page = requests.get(f"https://news.google.com/rss/articles/{article_id}", headers=HEADERS, timeout=30)
+    page.raise_for_status()
+    div = BeautifulSoup(page.text, "html.parser").select_one("c-wiz > div[jscontroller]")
+    payload = [
+        "Fbv4je",
+        f'["garturlreq",[["X","X",["X","X"],null,null,1,1,"US:en",null,1,null,null,null,null,null,0,1],'
+        f'"X","X",1,[1,1,1],1,1,null,0,0,null,0],"{article_id}",'
+        f'{div["data-n-a-ts"]},"{div["data-n-a-sg"]}"]',
+    ]
+    r = requests.post(
+        "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+        headers={**HEADERS, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+        data={"f.req": json.dumps([[payload]])},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return json.loads(json.loads(r.text.split("\n\n")[1])[0][2])[1]
+
+
+def get_article_urls_gnews() -> list[str]:
+    r = requests.get(GNEWS_RSS, headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    items = BeautifulSoup(r.content, "xml").find_all("item")
+    items.sort(key=lambda i: email.utils.parsedate_to_datetime(i.pubDate.get_text()), reverse=True)
+    out = []
+    for item in items[:10]:
+        try:
+            url = normalize(decode_gnews_url(item.link.get_text(strip=True)))
+        except Exception as e:  # noqa: BLE001 – egy rossz link ne állítsa meg a futást
+            print("Google News link feloldása sikertelen:", e, file=sys.stderr)
+            continue
+        if ARTICLE_RE.match(url):
+            out.append(url)
+    print(f"Google News: {len(items)} találat, {len(out)} Telex-cikk feloldva", file=sys.stderr)
     return out
 
 
