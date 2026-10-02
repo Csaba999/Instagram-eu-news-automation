@@ -185,7 +185,7 @@ def make_card(meta: dict, path: pathlib.Path) -> None:
     inner_w = WIDTH - 2 * FRAME
     inner_h = round(inner_w * photo.height / photo.width)
 
-    # az Instagram által elfogadott képarányon kívül eső képet kivágjuk
+    # az Instagram által elfogadott képarányon kívül eső képnél a vásznat igazítjuk a határhoz
     total_w, total_h = WIDTH, inner_h + 2 * FRAME
     ratio = total_w / total_h
     if ratio > MAX_RATIO:
@@ -194,9 +194,10 @@ def make_card(meta: dict, path: pathlib.Path) -> None:
         total_h = round(total_w / MIN_RATIO)
     inner_h = total_h - 2 * FRAME
 
-    photo = ImageOps.fit(photo, (inner_w, inner_h), method=Image.LANCZOS)
+    # a teljes kép mindig látszik: nem vágjuk le, hanem a zöld háttérre középre igazítjuk
+    photo = ImageOps.contain(photo, (inner_w, inner_h), method=Image.LANCZOS)
     card = Image.new("RGB", (total_w, total_h), GREEN)
-    card.paste(photo, (FRAME, FRAME))
+    card.paste(photo, ((total_w - photo.width) // 2, (total_h - photo.height) // 2))
     card.save(path, "JPEG", quality=92)
 
 
