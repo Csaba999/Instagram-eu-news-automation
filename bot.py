@@ -202,18 +202,6 @@ def make_card(meta: dict, path: pathlib.Path) -> None:
     card.save(path, "JPEG", quality=92)
 
 
-STORY_SIZE = (1080, 1920)  # Instagram sztori: 9:16
-
-
-def make_story(card_path: pathlib.Path, path: pathlib.Path) -> None:
-    """A keretes posztkép a 9:16-os sztori közepére, zöld háttérre (a kép itt sincs levágva)."""
-    card = Image.open(card_path)
-    card = ImageOps.contain(card, (STORY_SIZE[0], STORY_SIZE[1]), method=Image.LANCZOS)
-    story = Image.new("RGB", STORY_SIZE, GREEN)
-    story.paste(card, ((STORY_SIZE[0] - card.width) // 2, (STORY_SIZE[1] - card.height) // 2))
-    story.save(path, "JPEG", quality=92)
-
-
 def push_images(*paths: pathlib.Path) -> list[str]:
     """Az Instagramnak publikus URL kell: a képeket feltoljuk a (publikus) repóba."""
     subprocess.run(["git", "add", *map(str, paths)], check=True)
@@ -308,7 +296,7 @@ def main() -> None:
     if not DRY_RUN and candidates:
         check_account()
 
-    done, story_errors = 0, []
+    done = 0
     for url in candidates:  # legrégebbi elöl
         if done >= MAX_PER_RUN:
             break
@@ -321,27 +309,17 @@ def main() -> None:
             continue
         slug = hashlib.sha1(url.encode()).hexdigest()[:8]
         card = IMG_DIR / f"{date.today().isoformat()}-{slug}.jpg"
-        story = card.with_name(card.stem + "-story.jpg")
         make_card(meta, card)
-        make_story(card, story)
         caption = build_caption(meta)
         if DRY_RUN:
-            print(f"--- [DRY_RUN] kép: {card}, sztori: {story}\n{caption}\n---")
+            print(f"--- [DRY_RUN] kép: {card}\n{caption}\n---")
         else:
-            card_url, story_url = push_images(card, story)
+            (card_url,) = push_images(card)
             media_id = publish(image_url=card_url, caption=caption)
             posted.append(url)
-            save_state(posted)  # a poszt kint van: a sztori hibája se okozzon dupla posztot
+            save_state(posted)
             print("Posztolva:", url, "media id:", media_id)
-            try:
-                print("Sztori kint, media id:", publish(image_url=story_url, media_type="STORIES"))
-            except Exception as e:  # noqa: BLE001
-                print("Sztori hiba:", e, file=sys.stderr)
-                story_errors.append(url)
         done += 1
-
-    if story_errors:
-        sys.exit(f"{len(story_errors)} sztori nem került ki (a posztok igen), lásd fent.")
 
 
 if __name__ == "__main__":
