@@ -241,7 +241,7 @@ def post_to_instagram(image_url: str, caption: str) -> str:
 def build_caption(meta: dict) -> str:
     caption = (
         f"{meta['title']}\n\n{meta['description']}\n\nForrás: Telex.hu\n{meta['url']}"
-        "\n\n#európaiunió #eu #hírek #telex"
+        "\n\n#európaiunió #eu #hírek"
     )
     return caption[:2200]  # Instagram caption-limit
 
