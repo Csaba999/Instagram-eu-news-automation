@@ -26,11 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - run: pip install requests beautifulsoup4 lxml pillow
+      # a saját gépen a rendszer python3-ját használjuk egy virtuális környezetben
+      # (az actions/setup-python macOS-en /Users/runner-be telepítene, ahhoz nincs jog)
+      - name: Python env
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --upgrade pip
+          .venv/bin/pip install --quiet requests beautifulsoup4 lxml pillow
 
       - name: Git identity
         run: |
@@ -44,7 +46,7 @@ jobs:
           RAW_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
           MAX_PER_RUN: "1"
-        run: python bot.py
+        run: .venv/bin/python bot.py
 
       - name: Upload cards (DRY_RUN)
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
