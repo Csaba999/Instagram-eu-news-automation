@@ -37,6 +37,8 @@ HEADERS = {
 }
 STATE_FILE = pathlib.Path("posted.json")
 IMG_DIR = pathlib.Path("images")
+DOCS_DIR = pathlib.Path("docs")  # GitHub Pages: a bio-link oldala (docs/index.html)
+ARTICLES_FILE = DOCS_DIR / "articles.json"
 MAX_PER_RUN = int(os.environ.get("MAX_PER_RUN", "1"))  # ennyi új cikket posztol egy futásnál
 
 START_DATE = os.environ.get("START_DATE", "2026-10-02")  # ennél régebbi cikket nem posztol
@@ -288,6 +290,91 @@ def due_slot() -> str | None:
     return latest
 
 
+HU_MONTHS = ["január", "február", "március", "április", "május", "június", "július",
+             "augusztus", "szeptember", "október", "november", "december"]
+
+
+def load_articles() -> list[dict]:
+    return json.loads(ARTICLES_FILE.read_text()) if ARTICLES_FILE.exists() else []
+
+
+def save_articles(articles: list[dict]) -> None:
+    DOCS_DIR.mkdir(exist_ok=True)
+    ARTICLES_FILE.write_text(json.dumps(articles, indent=2, ensure_ascii=False) + "\n")
+
+
+def backfill_articles(posted: list[str], articles: list[dict]) -> None:
+    """A korábban posztolt, de az oldalon még nem szereplő cikkek címét utólag lekéri."""
+    known = {a["url"] for a in articles}
+    for url in posted:
+        if url in known:
+            continue
+        try:
+            meta = get_meta(url)
+        except Exception as e:  # noqa: BLE001
+            print("Cím lekérése sikertelen:", url, e, file=sys.stderr)
+            continue
+        if meta["title"]:
+            articles.append({"url": url, "title": meta["title"],
+                             "description": meta["description"], "date": article_date(url)})
+
+
+def build_page(articles: list[dict]) -> None:
+    """Egyszerű, mobilbarát lista a posztolt cikkekről, napok szerint, legfrissebb elöl."""
+    from html import escape
+
+    by_day: dict[str, list[dict]] = {}
+    for a in sorted(articles, key=lambda a: a["date"], reverse=True):
+        by_day.setdefault(a["date"], []).append(a)
+    sections = []
+    for day, items in list(by_day.items())[:60]:
+        y, m, d = map(int, day.split("-"))
+        lis = "\n".join(
+            f'<li><a href="{escape(a["url"])}" target="_blank" rel="noopener">{escape(a["title"])}</a>'
+            + (f'<p>{escape(a["description"])}</p>' if a.get("description") else "") + "</li>"
+            for a in reversed(items)  # egy napon belül a legutóbb posztolt elöl
+        )
+        sections.append(f"<h2>{y}. {HU_MONTHS[m - 1]} {d}.</h2>\n<ul>\n{lis}\n</ul>")
+    page = f"""<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Napi EU-s hírek</title>
+<style>
+:root {{ --bg:#f6f7f5; --card:#fff; --text:#1a1d1a; --muted:#5b625b; --accent:#00a844; --line:#e3e7e2; }}
+@media (prefers-color-scheme: dark) {{
+  :root {{ --bg:#111412; --card:#1a1e1b; --text:#eef1ee; --muted:#a3aba4; --accent:#2fd36f; --line:#2a302b; }}
+}}
+* {{ box-sizing:border-box; }}
+body {{ margin:0; background:var(--bg); color:var(--text);
+  font:16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+main {{ max-width:640px; margin:0 auto; padding:24px 16px 48px; }}
+header {{ border-left:6px solid var(--accent); padding-left:12px; margin-bottom:24px; }}
+h1 {{ font-size:1.6rem; margin:0; }}
+header p {{ margin:4px 0 0; color:var(--muted); }}
+h2 {{ font-size:1rem; color:var(--muted); margin:28px 0 8px; text-transform:uppercase; letter-spacing:.04em; }}
+ul {{ list-style:none; margin:0; padding:0; }}
+li {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:10px; }}
+li a {{ color:var(--text); font-weight:600; text-decoration:none; }}
+li a:hover {{ color:var(--accent); }}
+li p {{ margin:6px 0 0; color:var(--muted); font-size:.92rem; }}
+footer {{ margin-top:32px; color:var(--muted); font-size:.85rem; text-align:center; }}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Napi EU-s hírek</h1><p>Az Instagramon megosztott cikkek, napok szerint</p></header>
+{chr(10).join(sections) or "<p>Még nincs cikk.</p>"}
+<footer>Forrás: Telex.hu</footer>
+</main>
+</body>
+</html>
+"""
+    DOCS_DIR.mkdir(exist_ok=True)
+    (DOCS_DIR / "index.html").write_text(page)
+
+
 def main() -> None:
     slot = due_slot() if os.environ.get("SCHEDULED") else None
     if os.environ.get("SCHEDULED") and not slot:
@@ -305,6 +392,7 @@ def main() -> None:
     if not DRY_RUN and candidates:
         check_account()
 
+    articles = load_articles()
     done = 0
     for url in candidates:  # legrégebbi elöl
         if done >= MAX_PER_RUN:
@@ -327,6 +415,9 @@ def main() -> None:
             media_id = publish(image_url=card_url, caption=caption)
             posted.append(url)
             save_state(posted)
+            articles.append({"url": url, "title": meta["title"],
+                             "description": meta["description"], "date": article_date(url)})
+            save_articles(articles)
             print("Posztolva:", url, "media id:", media_id)
             try:  # a cikk linkje kommentként is a poszt alá kerül; hibája nem állítja meg a futást
                 ig_call("POST", f"{media_id}/comments", message=url)
@@ -334,6 +425,11 @@ def main() -> None:
             except Exception as e:  # noqa: BLE001
                 print("Komment hiba:", e, file=sys.stderr)
         done += 1
+
+    if not DRY_RUN:
+        backfill_articles(posted, articles)
+        save_articles(articles)
+        build_page(articles)
 
     if slot and not DRY_RUN:
         LAST_SLOT_FILE.write_text(slot + "\n")  # csak sikeres futás után: hiba esetén a következő indítás újrapróbálja
