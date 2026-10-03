@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import time
+import unicodedata
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -40,6 +41,9 @@ IMG_DIR = pathlib.Path("images")
 MAX_PER_RUN = int(os.environ.get("MAX_PER_RUN", "1"))  # ennyi új cikket posztol egy futásnál
 
 START_DATE = os.environ.get("START_DATE", "2026-10-02")  # ennél régebbi cikket nem posztol
+DAILY_LIMIT = int(os.environ.get("DAILY_LIMIT", "2"))  # naponta (budapesti nap) legfeljebb ennyi poszt
+MAX_AGE_DAYS = 2  # ennél régebbi cikk már nem kerül ki (a napi limit miatt ne torlódjon fel a sor)
+DAILY_FILE = pathlib.Path("daily_count.json")
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
 IG_USER_ID = os.environ.get("IG_USER_ID", "").strip()  # a secretbe véletlenül bekerült szóköz/újsor ne zavarjon
 IG_TOKEN = os.environ.get("IG_TOKEN", "").strip()
@@ -170,6 +174,50 @@ def get_meta(url: str) -> dict:
         "description": og("og:description"),
         "image": og("og:image"),
     }
+
+
+# Témaszűrés: csak uniós döntések, jogszabályok, bővítés, uniós pénzek stb.; belpolitika és
+# pártpolitika nem. A címben, a leírásban és az URL-ben keresünk (kisbetűsen, részszóra).
+TOPICS = {
+    "Döntés, jogszabály": ["rendelet", "irányelv", "jogszabály", "szabályoz", "elfogad", "megszavaz",
+                           "jóváhagy", "döntött", "döntés", "határozat", "betilt", "tilalom", "kötelező lesz",
+                           "új szabály", "javaslat", "európai bizottság", "uniós tanács", "az eu tanácsa"],
+    "Bővítés, csatlakozás": ["csatlakoz", "bővítés", "tagjelölt", "tagság", "uniós tag", "schengen",
+                             "euró bevezet", "eurózóna", "csatlakozási tárgyal"],
+    "Uniós pénzek": ["uniós forrás", "uniós pénz", "eu-s támogatás", "uniós támogatás", "helyreállítási",
+                     "kohéziós", "uniós költségvetés", "milliárd eurós", "befagyasztott"],
+    "Szankciók, kereskedelem": ["szankció", "kereskedelmi megállapodás", "vámtarifa", "vámok", "embargó"],
+    "Jog, bíróság": ["európai bíróság", "kötelezettségszegési", "jogállamisági", "bírság", "luxembourgi bíróság"],
+}
+BLOCKED = ["fidesz", "kdnp", "tisza", "orbán", "magyar péter", "mi hazánk", "momentum", "párt ",
+           "pártok", "kampány", "választás", "ellenzék", "közvélemény-kutatás", "közvélemény kutatás",
+           "interjú", "botrány"]
+
+
+def plain(text: str) -> str:
+    """Kisbetűs, ékezet nélküli alak (az URL-ek is ékezet nélküliek)."""
+    return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+
+
+def classify(meta: dict) -> str | None:
+    """A cikk témája (kategória neve), vagy None, ha nem illik a profilba."""
+    slug = meta["url"].rsplit("/", 1)[-1].replace("-", " ")
+    text = plain(f" {meta['title']} {meta['description']} {slug} ")
+    if any(plain(b) in text for b in BLOCKED):
+        return None
+    for topic, words in TOPICS.items():
+        if any(plain(w) in text for w in words):
+            return topic
+    return None
+
+
+def load_daily(today: str) -> int:
+    data = json.loads(DAILY_FILE.read_text()) if DAILY_FILE.exists() else {}
+    return data.get("count", 0) if data.get("date") == today else 0
+
+
+def save_daily(today: str, count: int) -> None:
+    DAILY_FILE.write_text(json.dumps({"date": today, "count": count}) + "\n")
 
 
 GREEN = "#00C853"   # a kép keretének színe
@@ -305,11 +353,33 @@ def main() -> None:
     if not DRY_RUN and candidates:
         check_account()
 
+    today_dt = datetime.now(ZoneInfo("Europe/Budapest")).date()
+    today = today_dt.isoformat()
+    oldest_ok = (today_dt - timedelta(days=MAX_AGE_DAYS)).isoformat()
+    posted_today = load_daily(today)
+    print(f"Ma eddig {posted_today}/{DAILY_LIMIT} poszt.")
+
     done = 0
     for url in candidates:  # legrégebbi elöl
-        if done >= MAX_PER_RUN:
+        if done >= MAX_PER_RUN or posted_today >= DAILY_LIMIT:
+            if posted_today >= DAILY_LIMIT:
+                print("Elérte a napi limitet, a többi cikk később jöhet.")
             break
+        if article_date(url) < oldest_ok:
+            print("Kihagyva (túl régi):", url)
+            if not DRY_RUN:
+                posted.append(url)
+                save_state(posted)
+            continue
         meta = get_meta(url)
+        topic = classify(meta)
+        if not topic:
+            print("Kihagyva (téma nem illik, pl. belpolitika):", meta["title"] or url)
+            if not DRY_RUN:
+                posted.append(url)
+                save_state(posted)
+            continue
+        print(f"Téma: {topic} – {meta['title']}")
         if not meta["title"] or not meta["image"]:
             print("Kihagyva (hiányzó og:title/og:image):", url)
             if not DRY_RUN:
@@ -322,11 +392,14 @@ def main() -> None:
         caption = build_caption(meta)
         if DRY_RUN:
             print(f"--- [DRY_RUN] kép: {card}\n{caption}\n---")
+            posted_today += 1  # a DRY_RUN is mutassa, mi férne bele a napi limitbe
         else:
             (card_url,) = push_images(card)
             media_id = publish(image_url=card_url, caption=caption)
             posted.append(url)
             save_state(posted)
+            posted_today += 1
+            save_daily(today, posted_today)
             print("Posztolva:", url, "media id:", media_id)
             try:  # a cikk linkje kommentként is a poszt alá kerül; hibája nem állítja meg a futást
                 ig_call("POST", f"{media_id}/comments", message=url)
