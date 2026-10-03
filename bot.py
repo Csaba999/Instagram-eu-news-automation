@@ -249,6 +249,8 @@ uniós pénzek, támogatások, költségvetés; szankciók, kereskedelmi megáll
 NEM KERÜLHET KI: aktuálpolitika és pártpolitika (magyar vagy más ország pártjai, politikusok egymás
 elleni vitái, nyilatkozatai, levelei, kampány, választás), interjúk, botrányok, személyes ügyek,
 és minden, ami nem egy uniós döntésről vagy folyamatról szól.
+INTERJÚ SOHA NEM KERÜLHET KI, akkor sem, ha uniós jogszabályról vagy uniós témáról szól
+(pl. egy EP-képviselővel készült beszélgetés egy irányelvről): ilyenkor kikerulhet = false.
 
 Kategóriák (ha kikerülhet): "Döntés, jogszabály", "Bővítés, csatlakozás", "Uniós pénzek",
 "Szankciók, kereskedelem", "Jog, bíróság", "Egyéb uniós ügy".
