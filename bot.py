@@ -215,7 +215,7 @@ def classify(meta: dict) -> str | None:
 
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 AI_PROMPT = """Egy magyar Instagram-oldalnak válogatsz híreket, amely az Európai Unió működéséről szól.
 Döntsd el a cikkről, hogy kikerülhet-e az oldalra.
 
