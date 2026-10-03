@@ -401,7 +401,22 @@ def due_slot() -> str | None:
     return latest
 
 
+def ai_test() -> None:
+    """Próbaüzem: a legutóbb feldolgozott cikkeket újra elbírálja (nem posztol, nem ír állapotot)."""
+    for url in load_state()[-12:]:
+        try:
+            meta = get_meta(url)
+        except Exception as e:  # noqa: BLE001
+            print("Nem sikerült lekérni:", url, e)
+            continue
+        print(f"\n{meta['title']}")
+        topic = decide_topic(meta)
+        print("  =>", f"KIKERÜLNE ({topic})" if topic else "KIMARADNA")
+
+
 def main() -> None:
+    if os.environ.get("AI_TEST"):
+        return ai_test()
     slot = due_slot() if os.environ.get("SCHEDULED") else None
     if os.environ.get("SCHEDULED") and not slot:
         return

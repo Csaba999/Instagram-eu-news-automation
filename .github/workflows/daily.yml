@@ -19,6 +19,10 @@ on:
         description: "DRY_RUN (nem pushol képet, nem posztol)"
         type: boolean
         default: true
+      ai_test:
+        description: "Csak az AI-szűrő próbája a legutóbbi cikkeken (nem posztol)"
+        type: boolean
+        default: false
       max_per_run:
         description: "Max. ennyi cikket posztol (napi limit: 2 poszt, ezen felül)"
         default: "1"
@@ -61,6 +65,7 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
           MAX_PER_RUN: ${{ inputs.max_per_run || '20' }}
           SCHEDULED: ${{ github.event_name == 'schedule' && '1' || '' }}
+          AI_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.ai_test && '1' || '' }}
         run: .venv/bin/python bot.py
 
       - name: Upload cards (DRY_RUN)
