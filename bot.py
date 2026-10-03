@@ -215,7 +215,29 @@ def classify(meta: dict) -> str | None:
 
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "")  # üresen: a legújabb elérhető flash-lite modell
+_resolved_model: str | None = None
+
+
+def gemini_model() -> str:
+    """A használt modell neve; alapból a Google listájából a legújabb "flash-lite" (a legkevésbé terhelt)."""
+    global _resolved_model
+    if GEMINI_MODEL:
+        return GEMINI_MODEL
+    if _resolved_model is None:
+        r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
+                         headers={"x-goog-api-key": GEMINI_API_KEY}, params={"pageSize": 1000}, timeout=30)
+        r.raise_for_status()
+        names = [
+            m["name"].split("/", 1)[1] for m in r.json().get("models", [])
+            if "generateContent" in m.get("supportedGenerationMethods", [])
+            and re.fullmatch(r"gemini-[\d.]+-flash-lite", m["name"].split("/", 1)[1])
+        ]
+        if not names:
+            raise RuntimeError("Nem találtam flash-lite Gemini modellt.")
+        _resolved_model = max(names, key=lambda n: [int(x) for x in re.findall(r"\d+", n)])
+        print("Gemini modell:", _resolved_model)
+    return _resolved_model
 AI_PROMPT = """Egy magyar Instagram-oldalnak válogatsz híreket, amely az Európai Unió működéséről szól.
 Döntsd el a cikkről, hogy kikerülhet-e az oldalra.
 
@@ -250,7 +272,7 @@ def classify_ai(meta: dict) -> tuple[bool, str, str]:
 
 def _gemini_request(article: str) -> requests.Response:
     return requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model()}:generateContent",
         headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
         json={
             "systemInstruction": {"parts": [{"text": AI_PROMPT}]},
