@@ -168,11 +168,14 @@ def get_meta(url: str) -> dict:
         tag = soup.find("meta", property=prop)
         return tag["content"].strip() if tag and tag.get("content") else ""
 
+    # a cikk elejének szövege a mesterséges intelligenciás témaszűréshez
+    body = " ".join(p.get_text(" ", strip=True) for p in soup.select("article p, .article-html-content p"))
     return {
         "url": url,
         "title": og("og:title"),
         "description": og("og:description"),
         "image": og("og:image"),
+        "body": body[:3000],
     }
 
 
@@ -209,6 +212,68 @@ def classify(meta: dict) -> str | None:
         if any(plain(w) in text for w in words):
             return topic
     return None
+
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+AI_PROMPT = """Egy magyar Instagram-oldalnak válogatsz híreket, amely az Európai Unió működéséről szól.
+Döntsd el a cikkről, hogy kikerülhet-e az oldalra.
+
+KIKERÜLHET: uniós döntések, rendeletek, irányelvek, jogszabályok és javaslatok; bővítés, csatlakozás,
+tagjelölt országok (és pl. egy ország vissza- vagy becsatlakozásáról szóló hírek, felmérések is);
+uniós pénzek, támogatások, költségvetés; szankciók, kereskedelmi megállapodások; az Európai Bíróság
+ítéletei, kötelezettségszegési eljárások; az uniós intézmények (Bizottság, Parlament, Tanács) döntései.
+
+NEM KERÜLHET KI: aktuálpolitika és pártpolitika (magyar vagy más ország pártjai, politikusok egymás
+elleni vitái, nyilatkozatai, levelei, kampány, választás), interjúk, botrányok, személyes ügyek,
+és minden, ami nem egy uniós döntésről vagy folyamatról szól.
+
+Kategóriák (ha kikerülhet): "Döntés, jogszabály", "Bővítés, csatlakozás", "Uniós pénzek",
+"Szankciók, kereskedelem", "Jog, bíróság", "Egyéb uniós ügy".
+Az indoklás egy rövid magyar mondat legyen."""
+
+
+def classify_ai(meta: dict) -> tuple[bool, str, str]:
+    """Gemini dönt a cikk témájáról: (kikerülhet-e, kategória, indoklás). Hibánál kivételt dob."""
+    article = f"Cím: {meta['title']}\nLeírás: {meta['description']}\nSzöveg eleje: {meta.get('body', '')}"
+    r = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+        json={
+            "systemInstruction": {"parts": [{"text": AI_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": article}]}],
+            "generationConfig": {
+                "temperature": 0,
+                "responseMimeType": "application/json",
+                "responseSchema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "kikerulhet": {"type": "BOOLEAN"},
+                        "kategoria": {"type": "STRING"},
+                        "indoklas": {"type": "STRING"},
+                    },
+                    "required": ["kikerulhet", "kategoria", "indoklas"],
+                },
+            },
+        },
+        timeout=60,
+    )
+    if not r.ok:
+        raise RuntimeError(f"Gemini API hiba (HTTP {r.status_code}): {r.text[:500]}")
+    data = json.loads(r.json()["candidates"][0]["content"]["parts"][0]["text"])
+    return bool(data["kikerulhet"]), data["kategoria"], data["indoklas"]
+
+
+def decide_topic(meta: dict) -> str | None:
+    """Ha van Gemini-kulcs, a modell dönt; hiba esetén (vagy kulcs nélkül) a kulcsszavas szűrő."""
+    if GEMINI_API_KEY:
+        try:
+            ok, topic, reason = classify_ai(meta)
+            print(f"AI döntés: {'IGEN' if ok else 'NEM'} ({topic}) – {reason}")
+            return topic if ok else None
+        except Exception as e:  # noqa: BLE001
+            print("AI szűrés nem sikerült, kulcsszavas szűrőre váltok:", e, file=sys.stderr)
+    return classify(meta)
 
 
 def load_daily(today: str) -> int:
@@ -372,7 +437,7 @@ def main() -> None:
                 save_state(posted)
             continue
         meta = get_meta(url)
-        topic = classify(meta)
+        topic = decide_topic(meta)
         if not topic:
             print("Kihagyva (téma nem illik, pl. belpolitika):", meta["title"] or url)
             if not DRY_RUN:
