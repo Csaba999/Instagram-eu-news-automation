@@ -426,7 +426,7 @@ def main() -> None:
 
     done = 0
     for url in candidates:  # legrégebbi elöl
-        if done >= MAX_PER_RUN or posted_today >= DAILY_LIMIT:
+        if done >= MAX_PER_RUN or (posted_today >= DAILY_LIMIT and not DRY_RUN):
             if posted_today >= DAILY_LIMIT:
                 print("Elérte a napi limitet, a többi cikk később jöhet.")
             break
@@ -456,8 +456,9 @@ def main() -> None:
         make_card(meta, card)
         caption = build_caption(meta)
         if DRY_RUN:
-            print(f"--- [DRY_RUN] kép: {card}\n{caption}\n---")
-            posted_today += 1  # a DRY_RUN is mutassa, mi férne bele a napi limitbe
+            limit_note = "" if posted_today < DAILY_LIMIT else " (a napi limit miatt élesben ma már nem kerülne ki)"
+            print(f"--- [DRY_RUN] kép: {card}{limit_note}\n{caption}\n---")
+            posted_today += 1
         else:
             (card_url,) = push_images(card)
             media_id = publish(image_url=card_url, caption=caption)
