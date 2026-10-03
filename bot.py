@@ -190,7 +190,7 @@ TOPICS = {
     "Jog, bíróság": ["európai bíróság", "kötelezettségszegési", "jogállamisági", "bírság", "luxembourgi bíróság"],
 }
 BLOCKED = ["fidesz", "kdnp", "tisza", "orbán", "magyar péter", "mi hazánk", "momentum", "párt ",
-           "pártok", "kampány", "választás", "ellenzék", "közvélemény-kutatás", "közvélemény kutatás",
+           "pártok", "kampány", "választás", "ellenzék",
            "interjú", "botrány"]
 
 
