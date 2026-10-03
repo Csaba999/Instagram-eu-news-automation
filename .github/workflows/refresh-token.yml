@@ -1,0 +1,40 @@
+name: Refresh Instagram token
+
+# Az Instagram long-lived token kb. 60 napig él; hetente meghosszabbítjuk (új 60 nap),
+# és az új tokent visszaírjuk az IG_TOKEN secretbe. Ehhez kell a GH_PAT secret:
+# egy fine-grained Personal Access Token erre a repóra, "Secrets: Read and write" joggal.
+on:
+  schedule:
+    - cron: "17 3 * * 1"   # minden hétfő 03:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest   # a graph.instagram.com a GitHub szervereiről is elérhető, nem kell hozzá a Mac
+    steps:
+      - name: Refresh IG_TOKEN
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Hiányzik a GH_PAT secret, így az új tokent nem tudom visszaírni."
+            exit 1
+          fi
+          token=$(printf %s "$IG_TOKEN" | tr -d '[:space:]')
+          # a válasz (hiba esetén is) nem tartalmazza a régi tokent
+          resp=$(curl -sS -G https://graph.instagram.com/refresh_access_token \
+            --data-urlencode grant_type=ig_refresh_token \
+            --data-urlencode "access_token=$token")
+          new=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))' <<<"$resp")
+          if [ -z "$new" ]; then
+            echo "::error::A token meghosszabbítása nem sikerült: $resp"
+            exit 1
+          fi
+          echo "::add-mask::$new"
+          days=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("expires_in",0)//86400)' <<<"$resp")
+          printf %s "$new" | gh secret set IG_TOKEN --repo "$GITHUB_REPOSITORY"
+          echo "IG_TOKEN meghosszabbítva, még kb. $days napig érvényes."
