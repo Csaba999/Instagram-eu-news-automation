@@ -236,7 +236,20 @@ Az indoklás egy rövid magyar mondat legyen."""
 def classify_ai(meta: dict) -> tuple[bool, str, str]:
     """Gemini dönt a cikk témájáról: (kikerülhet-e, kategória, indoklás). Hibánál kivételt dob."""
     article = f"Cím: {meta['title']}\nLeírás: {meta['description']}\nSzöveg eleje: {meta.get('body', '')}"
-    r = requests.post(
+    for wait in (10, 30, 60, None):  # túlterhelés (503) / kvóta (429) esetén újrapróbáljuk
+        r = _gemini_request(article)
+        if r.status_code not in (429, 500, 503) or wait is None:
+            break
+        print(f"Gemini foglalt (HTTP {r.status_code}), {wait} mp múlva újra...", file=sys.stderr)
+        time.sleep(wait)
+    if not r.ok:
+        raise RuntimeError(f"Gemini API hiba (HTTP {r.status_code}): {r.text[:500]}")
+    data = json.loads(r.json()["candidates"][0]["content"]["parts"][0]["text"])
+    return bool(data["kikerulhet"]), data["kategoria"], data["indoklas"]
+
+
+def _gemini_request(article: str) -> requests.Response:
+    return requests.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
         headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
         json={
@@ -258,10 +271,6 @@ def classify_ai(meta: dict) -> tuple[bool, str, str]:
         },
         timeout=60,
     )
-    if not r.ok:
-        raise RuntimeError(f"Gemini API hiba (HTTP {r.status_code}): {r.text[:500]}")
-    data = json.loads(r.json()["candidates"][0]["content"]["parts"][0]["text"])
-    return bool(data["kikerulhet"]), data["kategoria"], data["indoklas"]
 
 
 def decide_topic(meta: dict) -> str | None:
