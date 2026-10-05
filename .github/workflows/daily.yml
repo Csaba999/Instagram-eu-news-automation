@@ -8,7 +8,7 @@ on:
     # a bot.py a last_slot.txt alapján minden időpontot egyszer dolgoz fel.
     - cron: "45 11,12 * * *"   # 13:45
     - cron: "0 16,17 * * *"    # 18:00
-    - cron: "0 18,19 * * *"    # 20:00
+    - cron: "0 19,20 * * *"    # 21:00
   workflow_dispatch:       # kézi indítás is lehetséges
     inputs:
       dry_run:
