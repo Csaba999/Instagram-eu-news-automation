@@ -2,7 +2,7 @@ name: Daily EU news post
 
 on:
   schedule:
-    # Futási időpontok magyar idő szerint: 06:00, 11:00, 13:45, 15:35, 18:00, 20:00, 22:00.
+    # Futási időpontok magyar idő szerint: 06:00, 11:00, 13:45, 15:35, 18:00, 21:00, 22:00.
     # A cron UTC-ben megy, ezért a nyári (UTC+2) és a téli (UTC+1) eltolás is szerepel.
     # Ha a Mac alszik, a GitHub (max. 24 óráig) sorban tartja a futást, és ébredéskor lefut;
     # a bot.py a last_slot.txt alapján minden időpontot egyszer dolgoz fel.
