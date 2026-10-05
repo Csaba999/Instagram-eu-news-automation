@@ -11,7 +11,7 @@ REF="claude/instagram-telex-autopost-bot-khc4fy"
 LABEL="hu.epas.eu-bot-trigger"
 DIR="$HOME/.eu-bot"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-TIMES="06:00 11:00 13:45 15:35 18:00 21:00 22:00"   # magyar idő (a Mac órája szerint)
+TIMES="21:00"   # magyar idő (a Mac órája szerint)
 
 mkdir -p "$DIR" "$HOME/Library/LaunchAgents"
 
