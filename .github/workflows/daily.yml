@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
       max_per_run:
-        description: "Max. ennyi cikket posztol (napi limit: 2 poszt, ezen felül)"
+        description: "Max. ennyi cikket posztol (napi limit: 1 poszt)"
         default: "1"
       scheduled:
         description: "Ütemezett futásként viselkedjen (a Mac időzítője ezzel indítja)"
