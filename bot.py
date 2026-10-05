@@ -41,7 +41,7 @@ IMG_DIR = pathlib.Path("images")
 MAX_PER_RUN = int(os.environ.get("MAX_PER_RUN", "1"))  # ennyi új cikket posztol egy futásnál
 
 START_DATE = os.environ.get("START_DATE", "2026-10-02")  # ennél régebbi cikket nem posztol
-DAILY_LIMIT = int(os.environ.get("DAILY_LIMIT", "2"))  # naponta (budapesti nap) legfeljebb ennyi poszt
+DAILY_LIMIT = 1  # naponta (budapesti nap) legfeljebb 1 poszt
 MAX_AGE_DAYS = 2  # ennél régebbi cikk már nem kerül ki (a napi limit miatt ne torlódjon fel a sor)
 DAILY_FILE = pathlib.Path("daily_count.json")
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
