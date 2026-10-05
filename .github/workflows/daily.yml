@@ -6,8 +6,6 @@ on:
     # A cron UTC-ben megy, ezért a nyári (UTC+2) és a téli (UTC+1) eltolás is szerepel.
     # Ha a Mac alszik, a GitHub (max. 24 óráig) sorban tartja a futást, és ébredéskor lefut;
     # a bot.py a last_slot.txt alapján minden időpontot egyszer dolgoz fel.
-    - cron: "45 11,12 * * *"   # 13:45
-    - cron: "0 16,17 * * *"    # 18:00
     - cron: "0 19,20 * * *"    # 21:00
   workflow_dispatch:       # kézi indítás is lehetséges
     inputs:
