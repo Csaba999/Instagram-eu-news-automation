@@ -413,7 +413,7 @@ def build_caption(meta: dict) -> str:
 # elindítja a workflow-t; ha a Mac épp aludt, a GitHub sorban tartja a futást, és ébredéskor lefut.
 # A bot a legutóbb esedékes időpontot a last_slot.txt-ben jegyzi meg, így minden időpont egyszer
 # dolgozik: a kimaradtat ébredéskor pótolja, a dupla (másik eltolású) indítás pedig azonnal kilép.
-SLOTS = ["21:00"]
+SLOTS = ["06:00", "21:00"]
 LAST_SLOT_FILE = pathlib.Path("last_slot.txt")
 
 
