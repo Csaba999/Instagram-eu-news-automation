@@ -26,6 +26,10 @@ on:
       max_per_run:
         description: "Max. ennyi cikket posztol (napi limit: 2 poszt, ezen felül)"
         default: "1"
+      scheduled:
+        description: "Ütemezett futásként viselkedjen (a Mac időzítője ezzel indítja)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -64,7 +68,7 @@ jobs:
           RAW_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
           MAX_PER_RUN: ${{ inputs.max_per_run || '20' }}
-          SCHEDULED: ${{ github.event_name == 'schedule' && '1' || '' }}
+          SCHEDULED: ${{ (github.event_name == 'schedule' || inputs.scheduled) && '1' || '' }}
           AI_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.ai_test && '1' || '' }}
         run: .venv/bin/python bot.py
 
