@@ -41,9 +41,11 @@ IMG_DIR = pathlib.Path("images")
 MAX_PER_RUN = int(os.environ.get("MAX_PER_RUN", "1"))  # ennyi új cikket posztol egy futásnál
 
 START_DATE = os.environ.get("START_DATE", "2026-10-02")  # ennél régebbi cikket nem posztol
-DAILY_LIMIT = 1  # naponta (budapesti nap) legfeljebb 1 poszt
-MAX_AGE_DAYS = 2  # ennél régebbi cikk már nem kerül ki (a napi limit miatt ne torlódjon fel a sor)
-DAILY_FILE = pathlib.Path("daily_count.json")
+# Heti 1 poszt: a hét közben talált, szűrőn átment cikkek a weekly.json-ba gyűlnek, és vasárnap
+# POST_HOUR órakor (vagy a gép ébredése után) a hét legfontosabbja kerül ki.
+WEEKLY_FILE = pathlib.Path("weekly.json")
+POST_WEEKDAY, POST_HOUR = 6, 21  # vasárnap 21:00 (Budapest)
+MAX_AGE_DAYS = 8  # ennél régebbi cikk már nem kerül a jelöltek közé
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
 IG_USER_ID = os.environ.get("IG_USER_ID", "").strip()  # a secretbe véletlenül bekerült szóköz/újsor ne zavarjon
 IG_TOKEN = os.environ.get("IG_TOKEN", "").strip()
@@ -309,13 +311,71 @@ def decide_topic(meta: dict) -> str | None:
     return classify(meta)
 
 
-def load_daily(today: str) -> int:
-    data = json.loads(DAILY_FILE.read_text()) if DAILY_FILE.exists() else {}
-    return data.get("count", 0) if data.get("date") == today else 0
+def iso_week(day: date) -> str:
+    y, w, _ = day.isocalendar()
+    return f"{y}-W{w:02d}"
 
 
-def save_daily(today: str, count: int) -> None:
-    DAILY_FILE.write_text(json.dumps({"date": today, "count": count}) + "\n")
+def load_weekly() -> dict:
+    data = json.loads(WEEKLY_FILE.read_text()) if WEEKLY_FILE.exists() else {}
+    data.setdefault("candidates", [])
+    data.setdefault("posted_weeks", [])
+    return data
+
+
+def save_weekly(data: dict) -> None:
+    WEEKLY_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def target_week(now: datetime) -> str:
+    """Melyik hét posztja esedékes: vasárnap 21:00 után az aktuális hété, előtte az előző hété."""
+    if now.weekday() == POST_WEEKDAY and now.hour >= POST_HOUR:
+        return iso_week(now.date())
+    return iso_week(now.date() - timedelta(days=7))
+
+
+TOPIC_PRIORITY = ["Döntés, jogszabály", "Bővítés, csatlakozás", "Uniós pénzek",
+                  "Szankciók, kereskedelem", "Jog, bíróság", "Egyéb uniós ügy"]
+RANK_PROMPT = """Egy magyar Instagram-oldal az Európai Unió működéséről hetente EGY hírt tesz ki.
+Az alábbi, már előszűrt cikkek közül válaszd ki a hét legfontosabbját: azt, amelyik a legnagyobb
+hatású uniós döntésről, jogszabályról, bővítési lépésről vagy uniós pénzekről szól, és a legtöbb
+embert érinti. A válasz a kiválasztott cikk sorszáma és egy rövid magyar indoklás."""
+
+
+def pick_best(pool: list[dict]) -> dict:
+    """A hét legfontosabb cikke: Gemini választ; hibánál a téma-prioritás és a frissesség dönt."""
+    if GEMINI_API_KEY and len(pool) > 1:
+        listing = "\n\n".join(
+            f"{i}. [{a['topic']}] {a['title']}\n{a['description']}" for i, a in enumerate(pool, 1)
+        )
+        try:
+            r = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model()}:generateContent",
+                headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+                json={
+                    "systemInstruction": {"parts": [{"text": RANK_PROMPT}]},
+                    "contents": [{"role": "user", "parts": [{"text": listing}]}],
+                    "generationConfig": {
+                        "temperature": 0,
+                        "responseMimeType": "application/json",
+                        "responseSchema": {
+                            "type": "OBJECT",
+                            "properties": {"sorszam": {"type": "INTEGER"}, "indoklas": {"type": "STRING"}},
+                            "required": ["sorszam", "indoklas"],
+                        },
+                    },
+                },
+                timeout=60,
+            )
+            r.raise_for_status()
+            data = json.loads(r.json()["candidates"][0]["content"]["parts"][0]["text"])
+            choice = pool[int(data["sorszam"]) - 1]
+            print(f"AI választás: {choice['title']} – {data['indoklas']}")
+            return choice
+        except Exception as e:  # noqa: BLE001
+            print("AI rangsorolás nem sikerült, téma-prioritás szerint választok:", e, file=sys.stderr)
+    rank = {t: i for i, t in enumerate(TOPIC_PRIORITY)}
+    return min(pool, key=lambda a: (rank.get(a["topic"], len(rank)), [-ord(c) for c in a["date"]]))
 
 
 GREEN = "#00C853"   # a kép keretének színe
@@ -461,66 +521,66 @@ def main() -> None:
     IMG_DIR.mkdir(exist_ok=True)
     posted = load_state()
     candidates = oldest_first([u for u in get_article_urls() if u not in posted])
-    print(f"{len(candidates)} új cikk a listában, max. {MAX_PER_RUN} posztolva", "(DRY_RUN)" if DRY_RUN else "")
+    print(f"{len(candidates)} új cikk a listában", "(DRY_RUN)" if DRY_RUN else "")
 
-    if not DRY_RUN and candidates:
-        check_account()
+    now = datetime.now(ZoneInfo("Europe/Budapest"))
+    oldest_ok = (now.date() - timedelta(days=MAX_AGE_DAYS)).isoformat()
+    weekly = load_weekly()
+    known = {c["url"] for c in weekly["candidates"]}
 
-    today_dt = datetime.now(ZoneInfo("Europe/Budapest")).date()
-    today = today_dt.isoformat()
-    oldest_ok = (today_dt - timedelta(days=MAX_AGE_DAYS)).isoformat()
-    posted_today = load_daily(today)
-    print(f"Ma eddig {posted_today}/{DAILY_LIMIT} poszt.")
-
-    done = 0
-    for url in candidates:  # legrégebbi elöl
-        if done >= MAX_PER_RUN or (posted_today >= DAILY_LIMIT and not DRY_RUN):
-            if posted_today >= DAILY_LIMIT:
-                print("Elérte a napi limitet, a többi cikk később jöhet.")
-            break
-        if article_date(url) < oldest_ok:
-            print("Kihagyva (túl régi):", url)
-            if not DRY_RUN:
-                posted.append(url)
-                save_state(posted)
-            continue
-        meta = get_meta(url)
-        topic = decide_topic(meta)
-        if not topic:
-            print("Kihagyva (téma nem illik, pl. belpolitika):", meta["title"] or url)
-            if not DRY_RUN:
-                posted.append(url)
-                save_state(posted)
-            continue
-        print(f"Téma: {topic} – {meta['title']}")
-        if not meta["title"] or not meta["image"]:
-            print("Kihagyva (hiányzó og:title/og:image):", url)
-            if not DRY_RUN:
-                posted.append(url)
-                save_state(posted)
-            continue
-        slug = hashlib.sha1(url.encode()).hexdigest()[:8]
-        card = IMG_DIR / f"{date.today().isoformat()}-{slug}.jpg"
-        make_card(meta, card)
-        caption = build_caption(meta)
-        if DRY_RUN:
-            limit_note = "" if posted_today < DAILY_LIMIT else " (a napi limit miatt élesben ma már nem kerülne ki)"
-            print(f"--- [DRY_RUN] kép: {card}{limit_note}\n{caption}\n---")
-            posted_today += 1
+    # 1) gyűjtés: az új cikkeket elbíráljuk, a megfelelőek a hét jelöltjei közé kerülnek
+    for url in candidates:
+        if article_date(url) >= oldest_ok and url not in known:
+            meta = get_meta(url)
+            topic = decide_topic(meta)
+            if not topic:
+                print("Kihagyva (téma nem illik):", meta["title"] or url)
+            elif not meta["title"] or not meta["image"]:
+                print("Kihagyva (hiányzó og:title/og:image):", url)
+            else:
+                print(f"Jelölt ({topic}): {meta['title']}")
+                weekly["candidates"].append({
+                    "url": url, "title": meta["title"], "description": meta["description"],
+                    "image": meta["image"], "topic": topic, "date": article_date(url),
+                    "week": iso_week(date.fromisoformat(article_date(url))),
+                })
         else:
-            (card_url,) = push_images(card)
-            media_id = publish(image_url=card_url, caption=caption)
+            print("Kihagyva (túl régi):", url)
+        if not DRY_RUN:
             posted.append(url)
             save_state(posted)
-            posted_today += 1
-            save_daily(today, posted_today)
-            print("Posztolva:", url, "media id:", media_id)
+            save_weekly(weekly)
+
+    # 2) heti poszt: vasárnap 21:00-tól (vagy ha az előző heti kimaradt) a hét legjobbja kerül ki
+    week = target_week(now)
+    pool = [c for c in weekly["candidates"] if c["week"] == week]
+    print(f"{week}: {len(pool)} jelölt; a heti poszt {'már kint van' if week in weekly['posted_weeks'] else 'esedékes'}.")
+    if DRY_RUN:
+        this_week = [c for c in weekly["candidates"] if c["week"] == iso_week(now.date())]
+        if this_week:
+            best = pick_best(this_week)
+            print(f"--- [DRY_RUN] ezen a héten eddig ez lenne a poszt:\n{build_caption(best)}\n---")
+    elif week not in weekly["posted_weeks"]:
+        if pool:
+            best = pick_best(pool)
+            check_account()
+            slug = hashlib.sha1(best["url"].encode()).hexdigest()[:8]
+            card = IMG_DIR / f"{now.date().isoformat()}-{slug}.jpg"
+            make_card(best, card)
+            (card_url,) = push_images(card)
+            media_id = publish(image_url=card_url, caption=build_caption(best))
+            print("Heti poszt kint:", best["url"], "media id:", media_id)
             try:  # a cikk linkje kommentként is a poszt alá kerül; hibája nem állítja meg a futást
-                ig_call("POST", f"{media_id}/comments", message=url)
+                ig_call("POST", f"{media_id}/comments", message=best["url"])
                 print("Link kommentelve.")
             except Exception as e:  # noqa: BLE001
                 print("Komment hiba:", e, file=sys.stderr)
-        done += 1
+        else:
+            print(f"{week}: nem volt megfelelő cikk, ezen a héten nincs poszt.")
+        weekly["posted_weeks"] = (weekly["posted_weeks"] + [week])[-20:]
+        # a régi hetek jelöltjei már nem kellenek
+        weekly["candidates"] = [c for c in weekly["candidates"] if c["week"] > week]
+        save_weekly(weekly)
 
     if slot and not DRY_RUN:
         LAST_SLOT_FILE.write_text(slot + "\n")  # csak sikeres futás után: hiba esetén a következő indítás újrapróbálja
