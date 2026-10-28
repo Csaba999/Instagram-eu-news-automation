@@ -1,5 +1,33 @@
 {
-  "candidates": [],
+  "candidates": [
+    {
+      "url": "https://telex.hu/kulfold/2026/10/26/eu-europai-bizottsag-erasmus-minzatu",
+      "title": "Az Erasmus+ teljesen visszatért minden magyar egyetemre, aláírták a szerződéseket",
+      "description": "A támogatói szerződések legkésőbb 2024 őszére futottak ki minden kekva-hátterű modellváltó egyetemmel.",
+      "image": "https://assets.telex.hu/images/20261026/1793048933-temp-n1j0s5q6mlvsfddekcc_facebook.jpg",
+      "topic": "Uniós pénzek",
+      "date": "2026-10-26",
+      "week": "2026-W44"
+    },
+    {
+      "url": "https://telex.hu/kulfold/2026/10/27/eu-europai-bekekeret-ukrajna",
+      "title": "Szijjártó hétszer átengedte, évek óta blokkolta, most ismét Ukrajnába vitt hadisegély után fizettek EU-tagoknak",
+      "description": "Az Európai Békekeretet még 2024-ben bővítették egy kifejezetten Ukrajnának szánt alzsebbel, amit az akkori magyar kormány sem vétózott.",
+      "image": "https://assets.telex.hu/images/20261027/1793120831-temp-82bop881c6578aochaa_facebook.jpg",
+      "topic": "Uniós pénzek",
+      "date": "2026-10-27",
+      "week": "2026-W44"
+    },
+    {
+      "url": "https://telex.hu/gazdasag/2026/10/27/eu-europai-bizottsag-globalis-felmelegedes-alkalmazkodas",
+      "title": "A párizsi klímacél duplájával számolnak az EU-ban, jól megtérülne alkalmazkodni hozzá",
+      "description": "Az Európai Bizottság szerint arra kellene készülni, hogy az átlaghőmérséklet három fokkal túllépné az iparosodás előtti szintet 2100-ra.",
+      "image": "https://assets.telex.hu/images/20261027/1793134131-temp-bumiqd6qetk2aldplnc_facebook.jpg",
+      "topic": "Döntés, jogszabály",
+      "date": "2026-10-27",
+      "week": "2026-W44"
+    }
+  ],
   "posted_weeks": [
     "2026-W42",
     "2026-W43"
