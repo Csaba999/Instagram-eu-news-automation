@@ -1,5 +1,15 @@
 {
-  "candidates": [],
+  "candidates": [
+    {
+      "url": "https://telex.hu/kulfold/2026/11/04/eu-europai-bizottsag-bovitesi-csomag",
+      "title": "Montenegróval idén lezárnák az EU-tagsági tárgyalásokat, Ukrajna még 2027 végére se lenne közel ehhez",
+      "description": "Montenegró 2028-ban válhat az EU 28. tagjává az Európai Bizottság bővítési jelentése alapján. Albánia a második helyen áll az EU felé vezető úton, Ukrajnát lehagyhatja Moldova.",
+      "image": "https://assets.telex.hu/images/20261104/1793800234-temp-ohj0lcd2nvr2bnbhgma_facebook.jpg",
+      "topic": "Bővítés, csatlakozás",
+      "date": "2026-11-04",
+      "week": "2026-W45"
+    }
+  ],
   "posted_weeks": [
     "2026-W42",
     "2026-W43",
