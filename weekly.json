@@ -1,37 +1,10 @@
 {
-  "candidates": [
-    {
-      "url": "https://telex.hu/kulfold/2026/11/09/abu-dzabi-oroszorszag-ukrajna-egyesult-allamok-targyalasok-peszkov-europat-kizarta",
-      "title": "A Kreml kizárta az EU részvételét az Oroszország, Ukrajna és az USA közötti, abu-dzabi tárgyalásokon",
-      "description": "Dmitrij Peszkov szerint csak háromoldalú tárgyalásokat rendeznek.",
-      "image": "https://assets.telex.hu/images/20261109/1794225113-temp-ae2fdockkdkcfcjfmfe_facebook.jpg",
-      "topic": "Uniós pénzek",
-      "date": "2026-11-09",
-      "week": "2026-W46"
-    },
-    {
-      "url": "https://telex.hu/kulfold/2026/11/10/abu-dzabi-targyalas-usa-ukrajna-oroszorszag-europa-tisztviselok",
-      "title": "Európai tisztviselőkkel is találkozott az ukrán és amerikai delegáció Abu-Dzabiban, mielőtt az oroszokkal tárgyalnának",
-      "description": "A Kreml korábban kizárta az EU részvételét az Oroszország, Ukrajna és az Egyesült Államok részvételével zajló egyeztetésen.",
-      "image": "https://assets.telex.hu/images/20261110/1794302516-temp-q3re8qpnml5pcmkoiea_facebook.jpg",
-      "topic": "Szankciók, kereskedelem",
-      "date": "2026-11-10",
-      "week": "2026-W46"
-    },
-    {
-      "url": "https://telex.hu/kulfold/2026/11/13/eu-europai-tanacs-ursula-von-der-leyen-antonio-costa-ukrajna-mesterseges-intelligencia",
-      "title": "Kijelölték, kiknek a képviselői tárgyaljanak Európa nevében az ukrajnai békéről",
-      "description": "Négy nagy uniós tagállamból és az Egyesült Királyságból, valamint két uniós intézményből áll össze a csapat.",
-      "image": "https://assets.telex.hu/images/20261113/1794598484-temp-gvojb2bko9roacoejgo_facebook.jpg",
-      "topic": "Döntés, jogszabály",
-      "date": "2026-11-13",
-      "week": "2026-W46"
-    }
-  ],
+  "candidates": [],
   "posted_weeks": [
     "2026-W42",
     "2026-W43",
     "2026-W44",
-    "2026-W45"
+    "2026-W45",
+    "2026-W46"
   ]
 }
