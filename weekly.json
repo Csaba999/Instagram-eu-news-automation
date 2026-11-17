@@ -1,5 +1,42 @@
 {
-  "candidates": [],
+  "candidates": [
+    {
+      "url": "https://telex.hu/kulfold/2026/11/16/europai-unio-tanacsa-ukrajna-nyolcmilliard-euro-kifizetes-hatarozat",
+      "title": "Az Európai Unió Tanácsa jóváhagyta nyolcmilliárd euró kifizetését Ukrajnának",
+      "description": "Ukrajna 2024 közepe óta már több mint 40 milliárd eurót kapott az Ukrajna-terv keretében.",
+      "image": "https://assets.telex.hu/images/20261116/1794827196-temp-aflipd2btlfn1lnjnjc_facebook.jpg",
+      "topic": "Uniós pénzek",
+      "date": "2026-11-16",
+      "week": "2026-W47"
+    },
+    {
+      "url": "https://telex.hu/kulfold/2026/11/16/oroszorszag-szankciok-europai-unio-tanacs-finanszirozas",
+      "title": "Az EU szankciókat vet ki orosz e-kereskedők tulajdonosaira és az árnyékflotta üzemeltetőire",
+      "description": "101 szervezet és 12 személy került fel a szankciós listára.",
+      "image": "https://assets.telex.hu/images/20261116/1794834234-temp-9drfb34mc81v7gbigjg_facebook.jpg",
+      "topic": "Szankciók, kereskedelem",
+      "date": "2026-11-16",
+      "week": "2026-W47"
+    },
+    {
+      "url": "https://telex.hu/techtud/2026/11/17/eu-europai-parlament-kozossegi-media-korhatar-david-dora",
+      "title": "Magyar lesz az EU online gyerekvédelmi jogszabályának egyik európai parlamenti felelőse",
+      "description": "Dávid Dórát jelölték a jogszabály társjelentéstevőjének, Magyar Péter szerint így a tiszás képviselőnek jelentős befolyása lehet arra, „hogyan védjük meg európai szinten a gyermekeket”.",
+      "image": "https://assets.telex.hu/images/20261117/1794903722-temp-654um9340nocedimaoj_facebook.jpg",
+      "topic": "Döntés, jogszabály",
+      "date": "2026-11-17",
+      "week": "2026-W47"
+    },
+    {
+      "url": "https://telex.hu/gazdasag/2026/11/17/eu-europai-bizottsag-temu-dsa",
+      "title": "Uniós jogot sért a Temu, mert nem lép fel eléggé az illegális termékek ellen az Európai Bizottság szerint",
+      "description": "Ha beigazolódnak az uniós testület előzetes megállapításai, jöhet a büntetés. A Temu egyszer már kapott több mint 70 milliárd forintnyi bírságot.",
+      "image": "https://assets.telex.hu/images/20261117/1794920559-temp-e3245qiv1ib8enclmoa_facebook.jpg",
+      "topic": "Döntés, jogszabály",
+      "date": "2026-11-17",
+      "week": "2026-W47"
+    }
+  ],
   "posted_weeks": [
     "2026-W42",
     "2026-W43",
